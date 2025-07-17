@@ -1,6 +1,4 @@
-google-api-client
-google-auth-oauthlib
-google-auth
-os
-pickle
-time
+faust
+openai-agents
+asyncio
+python-json-logger
