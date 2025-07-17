@@ -1,6 +1,9 @@
 {
     "name": "Messenger",
-    "image": "mcr.microsoft.com/devcontainers/python:3.11",
+    "image": "mcr.microsoft.com/devcontainers/python:0-3.11",
+    "runArgs": [
+        "--privileged"
+    ],
     "hostRequirements": {
         "cpus": 2
     },

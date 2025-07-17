@@ -1,0 +1,6 @@
+faust-streaming
+openai-agents
+asyncio
+python-json-logger
+uuid
+datetime

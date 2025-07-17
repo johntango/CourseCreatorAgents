@@ -1,4 +1,0 @@
-faust
-openai-agents
-asyncio
-python-json-logger
