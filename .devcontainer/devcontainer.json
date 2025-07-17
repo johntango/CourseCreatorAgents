@@ -1,0 +1,19 @@
+{
+    "name": "Messenger",
+    "image": "mcr.microsoft.com/devcontainers/python:3.11",
+    "hostRequirements": {
+        "cpus": 2
+    },
+    "waitFor": "onCreateCommand",
+    "customizations": {
+        "codespaces": {
+            "openFiles": []
+        },
+        "vscode": {
+            "extensions": [
+                "GitHub.copilot",
+                "ritwickdey.LiveServer"
+            ]
+        }
+    }
+}
