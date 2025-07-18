@@ -2,6 +2,8 @@ import os
 import asyncio
 import faust
 import logging 
+import json
+from pythonjsonlogger import jsonlogger
 from agents import Agent, Runner, set_default_openai_key, trace
 from agents.model_settings import ModelSettings
 from uuid import uuid4
@@ -20,6 +22,7 @@ MAX_ROUNDS = 1  # Maximum number of rounds for the agent interactions
 
 # Faust setup
 app = faust.App("agent_pipeline", broker="kafka://localhost:9092")
+print("Starting Faust app...")  # Debugging line to verify app start
 
 # Define Agents
 plot_agent = Agent(
