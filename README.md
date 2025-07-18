@@ -33,7 +33,7 @@ from dataclasses import dataclass
 app = faust.App("agent_pipeline", broker="kafka://localhost:9092")
 ...
 
-### Now in Terminal Window launch program 
+### Now in Terminal Window launch program agent.py
 python agent.py worker -l info
 
 ## You should see something like this
