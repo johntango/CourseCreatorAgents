@@ -1,9 +1,9 @@
 # CourseCreatorAgents
 # Pub-Sub Capability Added
-# You should run Python 3.11 but NOT 3.12 or higher
-# In CodeSpaces this is specified in .devcontainer/devcontainer.json
+### You should run Python 3.11 but NOT 3.12 or higher
+### In CodeSpaces this is specified in .devcontainer/devcontainer.json
 #
-# Make sure you load faust-streaming and not an older version
+## Make sure you load faust-streaming and not an older version
 pip uninstall faust -y
 pip uninstall faust-streaming -y   # in case a half-installed one exists
 
@@ -12,13 +12,13 @@ pip install faust-streaming
 pip show faust-streaming
 
 # we run redpanda in a docker container. 
-## in terminal window - run docker to spin up redpanda version v24.3.18 
+### in terminal window - run docker to spin up redpanda version v24.3.18 
 docker run -d --name=redpanda   -p 9092:9092 -p 9644:9644   redpandadata/redpanda:v24.3.18   redpanda start   --overprovisioned   --smp 1   --memory 1G   --reserve-memory 0M   --node-id 0   --check=false   --kafka-addr PLAINTEXT://0.0.0.0:9092   --advertise-kafka-addr PLAINTEXT://localhost:9092
 
-# This should return and you should check the container is running.
+### This should return and you should check the container is running.
 
 
-## Now in Terminal Window launch program 
+### Now in Terminal Window launch program 
 python agent.py worker -l info
 
 ## You should see something like this
