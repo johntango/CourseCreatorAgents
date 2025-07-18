@@ -136,6 +136,7 @@ course_list = [
 
 
 # @app.task
+'''
 @app.timer(interval=1.0, on_leader=True)
 async def initiate_pipeline_once():
     print("🕒 Timer fired: initiate_pipeline_once")             # <— verify timer
@@ -153,7 +154,44 @@ async def initiate_pipeline_once():
     await plot_topic.send(value=Message(trace_id=trace_id,
                                         content=result.final_output,
                                         round=1))
+'''
 
+_has_run = False
+
+@app.timer(interval=1.0, on_leader=True)
+async def initiate_pipeline_once():
+    global _has_run
+    if _has_run:
+        return           # exit immediately on subsequent ticks
+    _has_run = True      # mark that we’ve now run
+
+    for course in course_list:
+        title = course["name"]
+        level = course["level"]
+        trace_id = str(uuid4())
+
+        # build a tailored prompt for this course
+        outline_prompt = (
+            f"Develop a structured, modular outline for the course titled '{title}', "
+            f"tailored for {level} learners. Include clear learning objectives, "
+            "module titles, and a brief description for each."
+        )
+
+        try:
+            print(f"🔍 Running plot_agent for '{title}' (trace {trace_id})")
+            result = await Runner.run(plot_agent, outline_prompt)
+            print("✅ plot_agent returned successfully")
+        except Exception as e:
+            print(f"❌ Exception in plot_agent for '{title}': {e}", flush=True)
+            # skip to next course
+            continue
+
+        print(f"✉️ Sending outline for '{title}' to plot_topic")
+        await plot_topic.send(value=Message(
+            trace_id=trace_id,
+            content=result.final_output,
+            round=1,
+        ))
 
 if __name__ == "__main__":
     app.main()
