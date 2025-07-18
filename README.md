@@ -17,6 +17,21 @@ docker run -d --name=redpanda   -p 9092:9092 -p 9644:9644   redpandadata/redpand
 
 ### This should return and you should check the container is running.
 
+### in the code faust-streaming is referenced as `faust` so we import it as such
+import os
+import asyncio
+import faust
+import logging 
+import json
+from pythonjsonlogger import jsonlogger
+from agents import Agent, Runner, set_default_openai_key, trace
+from agents.model_settings import ModelSettings
+from uuid import uuid4
+import datetime
+from dataclasses import dataclass
+# Faust setup in python code
+app = faust.App("agent_pipeline", broker="kafka://localhost:9092")
+...
 
 ### Now in Terminal Window launch program 
 python agent.py worker -l info
