@@ -5,6 +5,7 @@ import logging
 import json
 import datetime
 from uuid import uuid4
+import html as _html
 from dataclasses import dataclass
 from pythonjsonlogger import jsonlogger
 
@@ -24,7 +25,9 @@ app = faust.App("learning_material_pipeline", broker="kafka://localhost:9092")
 @dataclass
 class Message(faust.Record):
     trace_id: str
+    title: str
     content: str
+
 
 # Define one topic per agent stage
 input_topic            = app.topic("input",            value_type=Message)
@@ -179,7 +182,7 @@ delivery_agent = Agent(
     name="Delivery Agent",
     instructions=(
         "Master Instructions: Package all text, images, exercises, and quizzes into the "
-        "target format (web page, PDF, LMS). Repeat the Master Instructions."
+        "target format (HTML). Repeat the Master Instructions."
     ),
     model_settings=model_settings,
 )
@@ -202,7 +205,7 @@ async def parse_input(stream):
             result = await Runner.run(input_parser_agent, msg.content)
             log_event("produce", "background", msg.trace_id, result.final_output)
         await background_topic.send(
-            value=Message(trace_id=msg.trace_id, content=result.final_output)
+            value=Message(trace_id=msg.trace_id, title = msg.title,content=result.final_output)
         )
 
 @app.agent(background_topic)
@@ -213,7 +216,7 @@ async def analyze_background(stream):
             result = await Runner.run(background_analysis_agent, msg.content)
             log_event("produce", "decomposition", msg.trace_id, result.final_output)
         await decomposition_topic.send(
-            value=Message(trace_id=msg.trace_id, content=result.final_output)
+            value=Message(trace_id=msg.trace_id, title=msg.title, content=result.final_output)
         )
 
 @app.agent(decomposition_topic)
@@ -224,7 +227,7 @@ async def decompose_topic(stream):
             result = await Runner.run(topic_decomposition_agent, msg.content)
             log_event("produce", "planning", msg.trace_id, result.final_output)
         await planning_topic.send(
-            value=Message(trace_id=msg.trace_id, content=result.final_output)
+            value=Message(trace_id=msg.trace_id, title=msg.title, content=result.final_output)
         )
 
 @app.agent(planning_topic)
@@ -235,7 +238,7 @@ async def plan_curriculum(stream):
             result = await Runner.run(curriculum_planning_agent, msg.content)
             log_event("produce", "content", msg.trace_id, result.final_output)
         await content_topic.send(
-            value=Message(trace_id=msg.trace_id, content=result.final_output)
+            value=Message(trace_id=msg.trace_id, title=msg.title, content=result.final_output)
         )
 
 @app.agent(content_topic)
@@ -246,7 +249,7 @@ async def generate_content(stream):
             result = await Runner.run(content_generation_agent, msg.content)
             log_event("produce", "images", msg.trace_id, result.final_output)
         await images_topic.send(
-            value=Message(trace_id=msg.trace_id, content=result.final_output)
+            value=Message(trace_id=msg.trace_id, title=msg.title, content=result.final_output)
         )
 
 @app.agent(images_topic)
@@ -257,7 +260,7 @@ async def generate_images(stream):
             result = await Runner.run(images_agent, msg.content)
             log_event("produce", "exercises", msg.trace_id, result.final_output)
         await exercises_topic.send(
-            value=Message(trace_id=msg.trace_id, content=result.final_output)
+            value=Message(trace_id=msg.trace_id, title=msg.title, content=result.final_output)
         )
 
 @app.agent(exercises_topic)
@@ -268,7 +271,7 @@ async def generate_exercises(stream):
             result = await Runner.run(exercise_generation_agent, msg.content)
             log_event("produce", "mini_project", msg.trace_id, result.final_output)
         await mini_project_topic.send(
-            value=Message(trace_id=msg.trace_id, content=result.final_output)
+            value=Message(trace_id=msg.trace_id, title=msg.title, content=result.final_output)
         )
 
 @app.agent(mini_project_topic)
@@ -279,7 +282,7 @@ async def generate_mini_project(stream):
             result = await Runner.run(mini_project_agent, msg.content)
             log_event("produce", "quiz", msg.trace_id, result.final_output)
         await quiz_topic.send(
-            value=Message(trace_id=msg.trace_id, content=result.final_output)
+            value=Message(trace_id=msg.trace_id, title=msg.title, content=result.final_output)
         )
 
 @app.agent(quiz_topic)
@@ -290,7 +293,7 @@ async def generate_quiz(stream):
             result = await Runner.run(quiz_agent, msg.content)
             log_event("produce", "grading", msg.trace_id, result.final_output)
         await grading_topic.send(
-            value=Message(trace_id=msg.trace_id, content=result.final_output)
+            value=Message(trace_id=msg.trace_id, title=msg.title, content=result.final_output)
         )
 
 @app.agent(grading_topic)
@@ -301,7 +304,7 @@ async def grade_content(stream):
             result = await Runner.run(grading_agent, msg.content)
             log_event("produce", "feedback", msg.trace_id, result.final_output)
         await feedback_topic.send(
-            value=Message(trace_id=msg.trace_id, content=result.final_output)
+            value=Message(trace_id=msg.trace_id, title=msg.title, content=result.final_output)
         )
 
 @app.agent(feedback_topic)
@@ -312,7 +315,7 @@ async def provide_feedback(stream):
             result = await Runner.run(feedback_agent, msg.content)
             log_event("produce", "adaptation", msg.trace_id, result.final_output)
         await adaptation_topic.send(
-            value=Message(trace_id=msg.trace_id, content=result.final_output)
+            value=Message(trace_id=msg.trace_id, title=msg.title, content=result.final_output)
         )
 
 @app.agent(adaptation_topic)
@@ -323,7 +326,7 @@ async def adapt_learning(stream):
             result = await Runner.run(adaptation_agent, msg.content)
             log_event("produce", "delivery", msg.trace_id, result.final_output)
         await delivery_topic.send(
-            value=Message(trace_id=msg.trace_id, content=result.final_output)
+            value=Message(trace_id=msg.trace_id, title=msg.title, content=result.final_output)
         )
 
 @app.agent(delivery_topic)
@@ -334,15 +337,27 @@ async def deliver_content(stream):
             result = await Runner.run(delivery_agent, msg.content)
             log_event("produce", "final", msg.trace_id, result.final_output)
         await final_topic.send(
-            value=Message(trace_id=msg.trace_id, content=result.final_output)
+            value=Message(trace_id=msg.trace_id, title=msg.title, content=result.final_output)
         )
+
+html_lock = asyncio.Lock()
 
 @app.agent(final_topic)
 async def output_final(stream):
     async for msg in stream:
-        print(f"\n✅ Final Packaged Course (Trace {msg.trace_id}):\n{msg.content}\n")
-        # Trigger analytics after final delivery
-        await analytics_topic.send(value=Message(trace_id=msg.trace_id, content=msg.content))
+        async with html_lock:
+            print(f"\n✅ Final Course '{msg.title}' (Trace {msg.trace_id}):\n{msg.content}\n")
+            # Append section to HTML
+            anchor = msg.title.replace(' ', '-').replace("/", "-")
+            with open("courses.html", "a", encoding="utf-8") as html_file:
+                html_file.write(f"<h2 id='{anchor}'>{msg.title}</h2>\n")
+                html_file.write("<pre>\n")
+                html_file.write(_html.escape(msg.content))
+                html_file.write("\n</pre>\n")
+            # Trigger analytics
+            # Trigger analytics after final delivery
+            await analytics_topic.send(value=Message(trace_id=msg.trace_id, title=msg.title, content=msg.content))
+
 
 @app.agent(analytics_topic)
 async def run_analytics(stream):
@@ -351,6 +366,8 @@ async def run_analytics(stream):
         with trace("Analytics Phase"):
             await Runner.run(analytics_agent, msg.content)
         # No further topic
+
+
 
 
 # --- Bootstrap: Read JSON and kick off pipeline once ---
@@ -370,6 +387,15 @@ async def initiate_pipeline_once():
     except Exception as e:
         print(f"❌ Failed to load courses.json: {e}")
         return
+    
+# Initialize HTML with navigation
+    with open("courses.html", "w", encoding="utf-8") as html_file:
+        html_file.write("<html><head><meta charset='utf-8'><title>Courses</title></head><body>\n")
+        html_file.write("<h1>Courses</h1>\n<ul>\n")
+        for course in courses:
+            anchor = course['title'].replace(' ', '-').replace("/", "-")
+            html_file.write(f"<li><a href='#{anchor}'>{course['title']}</a></li>\n")
+        html_file.write("</ul>\n<div id='content'>\n")
 
     for course in courses:
         trace_id = str(uuid4())
@@ -379,7 +405,7 @@ async def initiate_pipeline_once():
         })
         log_event("initiate", "input", trace_id, payload)
         await input_topic.send(
-            value=Message(trace_id=trace_id, content=payload)
+            value=Message(trace_id=trace_id, title=course["title"], content=payload)
         )
 
 if __name__ == "__main__":

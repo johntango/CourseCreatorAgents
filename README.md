@@ -50,7 +50,7 @@ app = faust.App("agent_pipeline", broker="kafka://localhost:9092")
 
 ### Now in Terminal Window launch program agent.py
 
-python system.py worker -l info
+python system2.py worker -l info
 
 ## You should see something like this
 
