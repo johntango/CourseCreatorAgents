@@ -46,10 +46,20 @@ delivery_topic         = app.topic("delivery",         value_type=Message)
 final_topic            = app.topic("final",            value_type=Message)
 analytics_topic        = app.topic("analytics",        value_type=Message)
 
+class SimpleJsonFormatter(logging.Formatter):
+    def format(self, record):
+        # Convert the LogRecord to a dict, then dump to a JSON string
+        payload = {
+            "timestamp": self.formatTime(record, self.datefmt),
+            "level":     record.levelname,
+            "message":   record.getMessage(),
+            **record.__dict__,
+        }
+        return json.dumps(payload)
 # --- JSON Logging Setup ---
 log_file = "pipeline_interactions.json"
 log_handler = logging.FileHandler(log_file)
-log_handler.setFormatter(jsonlogger.JsonFormatter())
+log_handler.setFormatter(SimpleJsonFormatter())
 logger = logging.getLogger()
 logger.addHandler(log_handler)
 logger.setLevel(logging.DEBUG)

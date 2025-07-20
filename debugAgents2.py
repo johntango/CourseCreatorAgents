@@ -8,6 +8,7 @@ import datetime
 import html as _html
 from uuid import uuid4
 from dataclasses import dataclass
+#from pythonjsonlogger.jsonlogger import JsonFormatter
 
 from agents import Agent, Runner, set_default_openai_key, trace
 from agents.model_settings import ModelSettings
@@ -37,6 +38,7 @@ topics = {
     'content':       app.topic('content',      value_type=Message),
     'final':         app.topic('final',        value_type=Message),
 }
+
 
 class SimpleJsonFormatter(logging.Formatter):
     def format(self, record):
@@ -78,7 +80,7 @@ agents = {
     ),
     "background_analysis_agent": Agent(
         name="Background Analysis Agent",
-        instructions="Master Instructions: Analyze student background, detect prerequisites, set difficulty.",
+        instructions="Master Instructions: Analyze background, detect prerequisites, set difficulty.",
         model_settings=model_settings,
     ),
     "topic_decomposition_agent": Agent(
@@ -106,6 +108,10 @@ async def input_stage(stream):
         with trace("Input Parser Phase"):
             res = await Runner.run(agents['input_parser_agent'], msg.content)
             log_event("produce", 'background', msg.trace_id, res.final_output)
+        # Write stage output to HTML
+        anchor = msg.title.replace(' ', '-').replace("/", "-")
+        with open("courses.html", "a", encoding="utf-8") as html_file:
+            html_file.write(f"<section id='{anchor}-input'>\n<h3>Input Stage</h3>\n<pre>\n{_html.escape(res.final_output)}\n</pre>\n</section>\n")
         await topics['background'].send(
             value=Message(trace_id=msg.trace_id, title=msg.title, content=res.final_output)
         )
@@ -117,6 +123,9 @@ async def background_stage(stream):
         with trace("Background Analysis Phase"):
             res = await Runner.run(agents['background_analysis_agent'], msg.content)
             log_event("produce", 'decomposition', msg.trace_id, res.final_output)
+        anchor = msg.title.replace(' ', '-').replace("/", "-")
+        with open("courses.html", "a", encoding="utf-8") as html_file:
+            html_file.write(f"<section id='{anchor}-background'>\n<h3>Background Analysis Stage</h3>\n<pre>\n{_html.escape(res.final_output)}\n</pre>\n</section>\n")
         await topics['decomposition'].send(
             value=Message(trace_id=msg.trace_id, title=msg.title, content=res.final_output)
         )
@@ -128,6 +137,9 @@ async def decomposition_stage(stream):
         with trace("Topic Decomposition Phase"):
             res = await Runner.run(agents['topic_decomposition_agent'], msg.content)
             log_event("produce", 'planning', msg.trace_id, res.final_output)
+        anchor = msg.title.replace(' ', '-').replace("/", "-")
+        with open("courses.html", "a", encoding="utf-8") as html_file:
+            html_file.write(f"<section id='{anchor}-decomposition'>\n<h3>Topic Decomposition Stage</h3>\n<pre>\n{_html.escape(res.final_output)}\n</pre>\n</section>\n")
         await topics['planning'].send(
             value=Message(trace_id=msg.trace_id, title=msg.title, content=res.final_output)
         )
@@ -139,6 +151,9 @@ async def planning_stage(stream):
         with trace("Curriculum Planning Phase"):
             res = await Runner.run(agents['curriculum_planning_agent'], msg.content)
             log_event("produce", 'content', msg.trace_id, res.final_output)
+        anchor = msg.title.replace(' ', '-').replace("/", "-")
+        with open("courses.html", "a", encoding="utf-8") as html_file:
+            html_file.write(f"<section id='{anchor}-planning'>\n<h3>Curriculum Planning Stage</h3>\n<pre>\n{_html.escape(res.final_output)}\n</pre>\n</section>\n")
         await topics['content'].send(
             value=Message(trace_id=msg.trace_id, title=msg.title, content=res.final_output)
         )
@@ -150,6 +165,9 @@ async def content_stage(stream):
         with trace("Content Generation Phase"):
             res = await Runner.run(agents['content_generation_agent'], msg.content)
             log_event("produce", 'final', msg.trace_id, res.final_output)
+        anchor = msg.title.replace(' ', '-').replace("/", "-")
+        with open("courses.html", "a", encoding="utf-8") as html_file:
+            html_file.write(f"<section id='{anchor}-content'>\n<h3>Content Generation Stage</h3>\n<pre>\n{_html.escape(res.final_output)}\n</pre>\n</section>\n")
         await topics['final'].send(
             value=Message(trace_id=msg.trace_id, title=msg.title, content=res.final_output)
         )
@@ -157,14 +175,12 @@ async def content_stage(stream):
 @app.agent(topics['final'])
 async def output_final(stream):
     async for msg in stream:
+        log_event("consume", 'final', msg.trace_id, msg.content)
         print(f"\n✅ Final Course '{msg.title}' (Trace {msg.trace_id}):\n{msg.content}\n")
         anchor = msg.title.replace(' ', '-').replace("/", "-")
         with open("courses.html", "a", encoding="utf-8") as html_file:
-            html_file.write(f"<h2 id='{anchor}'>{msg.title}</h2>\n")
-            html_file.write("<pre>\n")
-            html_file.write(_html.escape(msg.content))
-            html_file.write("\n</pre>\n")
-        # Gracefully stop and exit
+            html_file.write(f"<section id='{anchor}-final'>\n<h2>Final Course</h2>\n<pre>\n{_html.escape(msg.content)}\n</pre>\n</section>\n")
+            html_file.write("</div>\n</body></html>\n")
         await app.stop()
         sys.exit(0)
 
@@ -184,13 +200,13 @@ async def initiate_pipeline_once():
         logger.error(f"❌ Failed to load courses.json: {e}")
         return
 
-    # Initialize HTML with navigation
+    # Initialize HTML with navigation and content container
     with open("courses.html", "w", encoding="utf-8") as html_file:
         html_file.write("<html><head><meta charset='utf-8'><title>Courses</title></head><body>\n")
         html_file.write("<h1>Courses</h1>\n<ul>\n")
         for course in courses:
             anchor = course['title'].replace(' ', '-').replace("/", "-")
-            html_file.write(f"<li><a href='#{anchor}'>{course['title']}</a></li>\n")
+            html_file.write(f"<li><a href='#{anchor}-final'>{course['title']}</a></li>\n")
         html_file.write("</ul>\n<div id='content'>\n")
 
     # Send each course into the pipeline
