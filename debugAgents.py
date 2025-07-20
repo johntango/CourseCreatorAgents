@@ -7,7 +7,7 @@ import datetime
 import html as _html
 from uuid import uuid4
 from dataclasses import dataclass
-from pythonjsonlogger import jsonlogger
+#from pythonjsonlogger import jsonlogger
 
 from agents import Agent, Runner, set_default_openai_key, trace
 from agents.model_settings import ModelSettings
@@ -38,14 +38,23 @@ topics = {
     'final':         app.topic('final',        value_type=Message),
 }
 
+class SimpleJsonFormatter(logging.Formatter):
+    def format(self, record):
+        # Convert the LogRecord to a dict, then dump to a JSON string
+        payload = {
+            "timestamp": self.formatTime(record, self.datefmt),
+            "level":     record.levelname,
+            "message":   record.getMessage(),
+            **record.__dict__,
+        }
+        return json.dumps(payload)
+    
 # --- JSON Logging Setup ---
 log_file = "pipeline_interactions.json"
 log_handler = logging.FileHandler(log_file)
-
-log_handler.setFormatter(jsonlogger.JsonFormatter)  # use JsonFormatter from pythonjsonlogger.jsonlogger
+log_handler.setFormatter(SimpleJsonFormatter())  # use JsonFormatter from pythonjsonlogger.jsonlogger
 logger = logging.getLogger()
 logger.addHandler(log_handler)
-logger.setLevel(logging.DEBUG
 logging.getLogger("asyncio").setLevel(logging.WARNING)
 logging.getLogger("aiokafka").setLevel(logging.DEBUG)
 logging.getLogger("faust").setLevel(logging.DEBUG)
@@ -111,7 +120,6 @@ async def output_final(stream):
             html_file.write("\n</pre>\n")
         # Stop the Faust app and exit
         await app.stop()
-        sys.exit(0)
 
 # --- Bootstrap: Read courses.json, write initial HTML, and start pipeline ---
 _has_run = False
