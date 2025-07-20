@@ -71,3 +71,7 @@ Starting Faust app...
 │ datadir │ /workspaces/CourseCreatorAgents/agent_pipeline-data │
 │ appdir │ /workspaces/CourseCreatorAgents/agent_pipeline-data/v1 │
 └─────────────┴────────────────────────────────────────────────────────┘
+
+# Use Openai Dashboard to view logs of the runs
+
+### the logs contain information on the input and output of each agent

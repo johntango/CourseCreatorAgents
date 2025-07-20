@@ -39,7 +39,6 @@ topics = {
     'final':         app.topic('final',        value_type=Message),
 }
 
-
 class SimpleJsonFormatter(logging.Formatter):
     def format(self, record):
         # Convert the LogRecord to a dict, then dump to a JSON string
@@ -71,34 +70,47 @@ def log_event(event_type: str, topic: str, trace_id: str, payload: str):
         "event_id":  str(uuid4()),
     })
 
-# --- Define Agents ---
-agents = {
-    "input_parser_agent":       Agent(
-        name="Input Parser Agent",
-        instructions="Master Instructions: Ingest JSON, validate schema, normalize fields.",
-        model_settings=model_settings,
-    ),
-    "background_analysis_agent": Agent(
-        name="Background Analysis Agent",
-        instructions="Master Instructions: Analyze background, detect prerequisites, set difficulty.",
-        model_settings=model_settings,
-    ),
-    "topic_decomposition_agent": Agent(
-        name="Topic Decomposition Agent",
-        instructions="Master Instructions: Decompose title into sub-topics, objectives.",
-        model_settings=model_settings,
-    ),
-    "curriculum_planning_agent": Agent(
-        name="Curriculum Planning Agent",
-        instructions="Master Instructions: Sequence sub-topics into a lesson plan.",
-        model_settings=model_settings,
-    ),
-    "content_generation_agent": Agent(
-        name="Content Generation Agent",
-        instructions="Master Instructions: Generate instructional text for each segment.",
-        model_settings=model_settings,
-    ),
+# --- Define prompt templates ---
+prompt_templates = {
+    'input_parser_agent': {
+        'system': "You are a JSON schema validator specialized in course pipelines.",
+        'user':   "Please validate and normalize the following JSON payload. Ensure it contains exactly the keys 'title' and 'background'. Respond with a compact JSON string.\n\nData:\n{input}",
+    },
+    'background_analysis_agent': {
+        'system': "You are an educational background analyst.",
+        'user':   "Given the course title and background JSON, identify prerequisites, key learning objectives, and recommend a difficulty level ('Beginner', 'Intermediate', 'Advanced'). Respond in JSON with keys: 'prerequisites', 'objectives', 'difficulty'.\n\nData:\n{input}",
+    },
+    'topic_decomposition_agent': {
+        'system': "You are an expert in breaking down topics into curriculum modules.",
+        'user':   "Break down the course topic and background analysis into a list of modules. For each module, provide 'subtopic' and a concise 'learning outcome'. Respond as a JSON array named 'modules'.\n\nData:\n{input}",
+    },
+    'curriculum_planning_agent': {
+        'system': "You are a curriculum planner optimizing lesson flow.",
+        'user':   "Sequence the provided modules into a lesson plan. For each module, assign 'order', include 'subtopic', 'outcome', and estimate 'duration_minutes'. Wrap in a JSON object 'lesson_plan'.\n\nData:\n{input}",
+    },
+    'content_generation_agent': {
+        'system': "You are a content creator for educational modules.",
+        'user':   "Generate detailed instructional content for each lesson module. Include an explanatory section, an example, and a practice question. Respond in JSON mapping module 'order' to 'content'.\n\nData:\n{input}",
+    },
 }
+
+# --- Instantiate Agents with system prompts ---
+agents = {}
+for key, prompts in prompt_templates.items():
+    agents[key] = Agent(
+        name=key.replace('_', ' ').title(),
+        instructions=prompts['system'],
+        model_settings=model_settings,
+    )
+
+# Helper: combine prompts and run agent
+async def run_agent(agent_key: str, input_data: str):
+    prompts = prompt_templates[agent_key]
+    combined = (
+        f"<|system|> {prompts['system']}\n<|endofsystem|>\n"
+        f"{prompts['user'].format(input=input_data)}"
+    )
+    return await Runner.run(agents[agent_key], combined)
 
 # --- Pipeline Stages ---
 @app.agent(topics['input'])
@@ -106,9 +118,8 @@ async def input_stage(stream):
     async for msg in stream:
         log_event("consume", 'input', msg.trace_id, msg.content)
         with trace("Input Parser Phase"):
-            res = await Runner.run(agents['input_parser_agent'], msg.content)
+            res = await run_agent('input_parser_agent', msg.content)
             log_event("produce", 'background', msg.trace_id, res.final_output)
-        # Write stage output to HTML
         anchor = msg.title.replace(' ', '-').replace("/", "-")
         with open("courses.html", "a", encoding="utf-8") as html_file:
             html_file.write(f"<section id='{anchor}-input'>\n<h3>Input Stage</h3>\n<pre>\n{_html.escape(res.final_output)}\n</pre>\n</section>\n")
@@ -121,7 +132,7 @@ async def background_stage(stream):
     async for msg in stream:
         log_event("consume", 'background', msg.trace_id, msg.content)
         with trace("Background Analysis Phase"):
-            res = await Runner.run(agents['background_analysis_agent'], msg.content)
+            res = await run_agent('background_analysis_agent', msg.content)
             log_event("produce", 'decomposition', msg.trace_id, res.final_output)
         anchor = msg.title.replace(' ', '-').replace("/", "-")
         with open("courses.html", "a", encoding="utf-8") as html_file:
@@ -135,7 +146,7 @@ async def decomposition_stage(stream):
     async for msg in stream:
         log_event("consume", 'decomposition', msg.trace_id, msg.content)
         with trace("Topic Decomposition Phase"):
-            res = await Runner.run(agents['topic_decomposition_agent'], msg.content)
+            res = await run_agent('topic_decomposition_agent', msg.content)
             log_event("produce", 'planning', msg.trace_id, res.final_output)
         anchor = msg.title.replace(' ', '-').replace("/", "-")
         with open("courses.html", "a", encoding="utf-8") as html_file:
@@ -149,7 +160,7 @@ async def planning_stage(stream):
     async for msg in stream:
         log_event("consume", 'planning', msg.trace_id, msg.content)
         with trace("Curriculum Planning Phase"):
-            res = await Runner.run(agents['curriculum_planning_agent'], msg.content)
+            res = await run_agent('curriculum_planning_agent', msg.content)
             log_event("produce", 'content', msg.trace_id, res.final_output)
         anchor = msg.title.replace(' ', '-').replace("/", "-")
         with open("courses.html", "a", encoding="utf-8") as html_file:
@@ -163,9 +174,9 @@ async def content_stage(stream):
     async for msg in stream:
         log_event("consume", 'content', msg.trace_id, msg.content)
         with trace("Content Generation Phase"):
-            res = await Runner.run(agents['content_generation_agent'], msg.content)
+            res = await run_agent('content_generation_agent', msg.content)
             log_event("produce", 'final', msg.trace_id, res.final_output)
-        anchor = msg.title.replace(' ', '-').replace("/", "-")
+        anchor = msg.title.replace(' ', '-')
         with open("courses.html", "a", encoding="utf-8") as html_file:
             html_file.write(f"<section id='{anchor}-content'>\n<h3>Content Generation Stage</h3>\n<pre>\n{_html.escape(res.final_output)}\n</pre>\n</section>\n")
         await topics['final'].send(
