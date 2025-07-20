@@ -28,23 +28,24 @@ class Message(faust.Record):
     title: str
     content: str
 
-# Define Kafka topics for each stage
+# Define Kafka topics for each stage (no analytics)
 topics = {
-    'input': app.topic('input', value_type=Message),
-    'background': app.topic('background', value_type=Message),
-    'decomposition': app.topic('decomposition', value_type=Message),
-    'planning': app.topic('planning', value_type=Message),
-    'content': app.topic('content', value_type=Message),
-    'final': app.topic('final', value_type=Message),
+    'input':         app.topic('input',        value_type=Message),
+    'background':    app.topic('background',   value_type=Message),
+    'decomposition': app.topic('decomposition',value_type=Message),
+    'planning':      app.topic('planning',     value_type=Message),
+    'content':       app.topic('content',      value_type=Message),
+    'final':         app.topic('final',        value_type=Message),
 }
 
 # --- JSON Logging Setup ---
 log_file = "pipeline_interactions.json"
 log_handler = logging.FileHandler(log_file)
-log_handler.setFormatter(jsonlogger.JsonFormatter())
+
+log_handler.setFormatter(jsonlogger.JsonFormatter)  # use JsonFormatter from pythonjsonlogger.jsonlogger
 logger = logging.getLogger()
 logger.addHandler(log_handler)
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.DEBUG
 logging.getLogger("asyncio").setLevel(logging.WARNING)
 logging.getLogger("aiokafka").setLevel(logging.DEBUG)
 logging.getLogger("faust").setLevel(logging.DEBUG)
@@ -62,17 +63,17 @@ def log_event(event_type: str, topic: str, trace_id: str, payload: str):
 # --- Define Agents ---
 agents = {}
 agent_specs = [
-    ("input_parser_agent",     "Ingest JSON, validate schema, normalize fields."),
-    ("background_analysis_agent", "Analyze background, detect prerequisites, set difficulty."),
-    ("topic_decomposition_agent", "Decompose title into sub-topics, objectives."),
-    ("curriculum_planning_agent", "Sequence sub-topics into a lesson plan."),
-    ("content_generation_agent", "Generate instructional text for each segment."),
+    ("input_parser_agent",       "Ingest JSON, validate schema, normalize fields."),
+    ("background_analysis_agent","Analyze background, detect prerequisites, set difficulty."),
+    ("topic_decomposition_agent","Decompose title into sub-topics, objectives."),
+    ("curriculum_planning_agent","Sequence sub-topics into a lesson plan."),
+    ("content_generation_agent","Generate instructional text for each segment."),
 ]
 
 for name, instr in agent_specs:
     agents[name] = Agent(
         name=name.replace('_', ' ').title(),
-        instructions=f"Master Instructions: {instr} Repeat the Master Instructions in your response.",
+        instructions=f"Master Instructions: {instr}",
         model_settings=model_settings,
     )
 
@@ -83,17 +84,15 @@ stage_flow = [
     ('decomposition','topic_decomposition_agent','planning'),
     ('planning',    'curriculum_planning_agent','content'),
     ('content',     'content_generation_agent','final'),
-
 ]
 
 for in_stage, agent_key, out_stage in stage_flow:
     @app.agent(topics[in_stage])
     async def _stage(stream, agent_key=agent_key, in_stage=in_stage, out_stage=out_stage):
-        agent = agents[agent_key]
         async for msg in stream:
             log_event("consume", in_stage, msg.trace_id, msg.content)
-            with trace(f"{agent.name} Phase"):
-                result = await Runner.run(agent, msg.content)
+            with trace(f"{agents[agent_key].name} Phase"):
+                result = await Runner.run(agents[agent_key], msg.content)
                 log_event("produce", out_stage, msg.trace_id, result.final_output)
             await topics[out_stage].send(
                 value=Message(trace_id=msg.trace_id, title=msg.title, content=result.final_output)
@@ -110,8 +109,9 @@ async def output_final(stream):
             html_file.write("<pre>\n")
             html_file.write(_html.escape(msg.content))
             html_file.write("\n</pre>\n")
-        # Trigger analytics
-        await topics['analytics'].send(value=msg)
+        # Stop the Faust app and exit
+        await app.stop()
+        sys.exit(0)
 
 # --- Bootstrap: Read courses.json, write initial HTML, and start pipeline ---
 _has_run = False
@@ -127,7 +127,7 @@ async def initiate_pipeline_once():
         with open("courses.json", "r", encoding="utf-8") as f:
             courses = json.load(f)
     except Exception as e:
-        print(f"❌ Failed to load courses.json: {e}")
+        logger.error(f"❌ Failed to load courses.json: {e}")
         return
 
     # Initialize HTML with navigation
