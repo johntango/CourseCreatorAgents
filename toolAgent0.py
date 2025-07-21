@@ -13,73 +13,15 @@ model_settings = ModelSettings(
     max_tokens=5000,
 )
 
-# --- Define Agents ---
-# --- Define prompt templates ---
-prompt_templates = {
-    'scheduling_agent': {
-        'system': "You are the scheduling agent for the development of courses. You will receive a course title and background information in JSON format. Your task is to call the tools sequentially to complete the contents of the course suitable for the background of the student.",
-        'user':   "Use the 'title' and 'background'. ",
-    },
-    'background_analysis_agent': {
-        'system': "You are an educational background analyst. Analyze the provided course title and background information to extract key insights. Identify the target audience, their prior knowledge, and any specific needs or challenges they may face. ",
-        'user':   "Given the course title and background, identify prerequisites, key learning objectives, and recommend a difficulty level ('Beginner', 'Intermediate', 'Advanced'). Respond in JSON with keys: 'prerequisites', 'objectives', 'difficulty'.\n\nData:\n{input}",
-    },
-    'topic_decomposition_agent': {
-        'system': "You are an expert in defining the curricular modules and topics within curriculum modules.",
-        'user':   "Break down the course into a list of modules. For each module, provide topics and subtopic and a concise 'learning outcome'.",
-    },
-    'content_generation_agent': {
-        'system': "You are a content creator for educational topics.",
-        'user':   "Generate detailed instructional content for each topic. Include an explanatory section, an example, and a practice question.",
-    },
-}
-
-# --- Instantiate Agents with system prompts ---
-# --- Define Agents ---
-agents = {
-    "editor_agent":  Agent(
-        name="Editor Agent",
-        instructions="Master Instructions: Ingest JSON, validate schema, normalize fields.",
-        model_settings=model_settings,
-    ),
-    "background_analysis_agent": Agent(
-        name="Background Analysis Agent",
-        instructions="Master Instructions: Analyze student background, detect prerequisites, set difficulty.",
-        model_settings=model_settings,
-    ),
-    "topic_decomposition_agent": Agent(
-        name="Topic Decomposition Agent",
-        instructions="Master Instructions: Decompose title into sub-topics, objectives.",
-        model_settings=model_settings,
-    ),
-    "curriculum_planning_agent": Agent(
-        name="Curriculum Planning Agent",
-        instructions="Master Instructions: Sequence sub-topics into a lesson plan.",
-        model_settings=model_settings,
-    ),
-    "content_generation_agent": Agent(
-        name="Content Generation Agent",
-        instructions="Master Instructions: Generate instructional text for each segment.",
-        model_settings=model_settings,
-    ),
-}
-
-
-plot_agent = Agent(
-    name="Plot Agent",
-    instructions="Develop a creative, child-friendly plot for a story titled 'Tim the Flying Dog'. The story should have a clear beginning, middle, and end, with lighthearted conflict and resolution. Output only the plot structure.",
+topics_agent = Agent(
+    name="Topics Agent",
+    instructions="Develop the modules and topics for the course, taking into account the background of the student and the course objectives. Output the list of topics and a description for each topic.",
     model_settings=model_settings,
 )
 
 writer_agent = Agent(
     name="Writer Agent",
-    instructions="Using the plot provided, write a vivid, engaging narrative suitable for children aged 5-8. Keep the language simple and whimsical. Include imaginative details.",
-    model_settings=model_settings,
-)
-
-critic_agent = Agent(
-    name="Critic Agent",
-    instructions="Review the story written by the Writer Agent. Suggest improvements focused on language clarity, pacing, tone, and engagement for young readers. Do not rewrite the entire story, just give specific, actionable feedback.",
+    instructions="Using the topics provided, develop content for that topic given the background of the student.",
     model_settings=model_settings,
 )
 
@@ -94,8 +36,17 @@ editor_agent = Agent(
         "Respond at each stage using structured outputs like {stage: ..., content: ...}."
     ),
     model_settings=model_settings,
-  
-    handoffs=[plot_agent, writer_agent, critic_agent]
+    tools=[
+        topics_agent.as_tool(
+            tool_name="PlotAgent",
+            tool_description="Develop an outline plot that the writer can use to write the story.",
+        ),
+        writer_agent.as_tool(
+            tool_name="WriterAgent",
+            tool_description="Write the story based on the plot provided by the Plot Agent.",
+        ),
+    ],
+    handoffs=[topics_agent, writer_agent]
 )
 def trace_hook(trace):
     for step in trace.steps:
@@ -104,8 +55,8 @@ def trace_hook(trace):
         print(f"✅ Output: {step.output.content}")
 # --- Runner Execution ---
 
-async def run_book_creation():
-    input_prompt = "Please coordinate the book creation process for 'Tim the Flying Dog'."
+async def run_course_creation():
+    input_prompt = "Please coordinate the coursecreation process for 'LLM Prompting for Beginners'. The course should be designed for absolute beginners with no prior knowledge of LLMs. The course should cover the following topics: Introduction to LLMs, Basic Prompting Techniques, Advanced Prompting Techniques, and Practical Applications of LLMs. Each topic should have a detailed description and learning objectives."
     print(f">> Running Editor Agent with input: {input_prompt}")
 
     try:
@@ -121,4 +72,4 @@ async def run_book_creation():
 
 # Entry point
 if __name__ == "__main__":
-    asyncio.run(run_book_creation())
+    asyncio.run(run_course_creation())
