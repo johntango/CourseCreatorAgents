@@ -58,10 +58,20 @@ story_topic = app.topic("story", value_type=Message)
 critique_topic = app.topic("critique", value_type=Message)
 final_topic = app.topic("final", value_type=Message)
 
+class SimpleJsonFormatter(logging.Formatter):
+    def format(self, record):
+        # Convert the LogRecord to a dict, then dump to a JSON string
+        payload = {
+            "timestamp": self.formatTime(record, self.datefmt),
+            "level":     record.levelname,
+            "message":   record.getMessage(),
+            **record.__dict__,
+        }
+        return json.dumps(payload)
 # Set up JSON log file
 log_file = "broker_interactions.json"
 log_handler = logging.FileHandler(log_file)
-log_formatter = jsonlogger.JsonFormatter()
+log_formatter = SimpleJsonFormatter()
 log_handler.setFormatter(log_formatter)
 
 logger = logging.getLogger()
