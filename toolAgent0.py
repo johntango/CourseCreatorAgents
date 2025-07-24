@@ -1,7 +1,10 @@
 import os
 import asyncio
-from agents import Agent, Runner, set_default_openai_key, gen_trace_id, trace
+from agents import Agent, Runner, set_default_openai_key, gen_trace_id, trace, WebSearchTool
 from agents.model_settings import ModelSettings
+
+
+
 # this uses agents as tools there is no handoff just tool calling
 # Set your OpenAI key
 set_default_openai_key(os.environ["OPENAI_API_KEY"])
@@ -20,8 +23,9 @@ topics_agent = Agent(
 
 writer_agent = Agent(
     name="Writer Agent",
-    instructions="Using the topics provided, develop content for that topic given the background level of the student. Write at least one paragraph for each topic, ensuring the content is engaging and informative. Send the content back to the Editor Agent.",
+    instructions="Using the topics provided, use WebSearch to develop content for that topic given the background level of the student. Write at least one paragraph for each topic, ensuring the content is engaging and informative. Send the content back to the Editor Agent.",
     model_settings=model_settings,
+    tools = [ WebSearchTool() ] 
 )
 
 broadcast_agent = Agent(
@@ -40,18 +44,20 @@ editor_agent = Agent(
     ),
     model_settings=model_settings,
     tools=[
+        WebSearchTool(),
         topics_agent.as_tool(
             tool_name="PlotAgent",
-            tool_description="Develop modules and topics that the writer can use to write the story.",
+            tool_description="Develop modules and topics that the writer can use to write the story. Output the list of topics and a description for each topic in a block of red markdown.",
         ),
         writer_agent.as_tool(
             tool_name="WriterAgent",
-            tool_description="Write a paragraph for each topic provided by the Plot Agent.",
+            tool_description="Write a paragraph for each topic provided by the Plot Agent. Output the content in a block of green markdown.",
         ),
         broadcast_agent.as_tool(
             tool_name="BroadcastAgent",
-            tool_description="Write a 3 minute broadcast for each topic provided by the Writer Agent.",
+            tool_description="Write a 3 minute broadcast for each topic provided by the Writer Agent. Output the content in a block of yellow markdown.",
         ),
+       
     ],
     #handoffs=[topics_agent, writer_agent]
 )

@@ -1,6 +1,6 @@
 # CourseCreatorAgents
 
-# Pub-Sub Capability And Tool Agent Approach
+# Two different approaches - Pub-Sub Capability And Agents-as-Tools Approach
 
 ### You should run Python 3.11 but NOT 3.12 or higher
 
